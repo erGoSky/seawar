@@ -3,12 +3,12 @@
 const express = require('express');
 const socketIO = require('socket.io');
 const session = require('express-session');
+const crypto = require('crypto');
 const space = require(__dirname+'/lib/space');
 const PORT = process.env.PORT || 3000;
 const  app = express();
 
-var clients=[];
-var rooms=[];
+
 
 app.set('view engine', 'ejs');
 app.use(session({
@@ -21,14 +21,17 @@ app.get('/', function(req, res){
     console.log('req.session.clientId');
     console.log(req.session.clientId);
     if(req.session.clientId == undefined){
-        req.session.clientId = clients.length;
-        clients[clients.length]='';
+        req.session.clientId = crypto.randomBytes(16).toString('hex');;
     }
+    console.log(req.session.clientId);
     res.render('main', { clientId: req.session.clientId });
 });
 //app.use(express.static('public'))
 const server = app.listen(PORT, () => console.log(`Listening on ${ PORT }`));
 
+var clients={};
+var rooms=[];
+var currentGame=[];
 
 const io = socketIO(server);
 io.on('connection', (socket) => {
@@ -37,105 +40,130 @@ io.on('connection', (socket) => {
     socket.on('login', (data) => {
         console.log('Client login');
         console.log(data);
-        if(clients[data.clientId] == '')
-        {
 
-            clients[data.clientId] = {socket: socket, room:rooms[rooms.length]};
-            console.log(rooms);
-            if( rooms.length==0 || rooms[rooms.length-1].client == undefined)
+
+        if(clients[data.clientId] == undefined)
+        {
+            clients[data.clientId] = {socket: socket};
+            if(currentGame.length==0)
             {
                 console.log('fir')
-                clients[data.clientId].room = rooms.length;
-                rooms[clients[data.clientId].room]={client:[]};
-                rooms[clients[data.clientId].room].client[0] = {clientId:data.clientId};
+                console.log(data.clientId)
+                currentGame.push(data.clientId);
                 socket.emit('waitOponent',{})
             }
-            else{
+            else if(currentGame.length==1)
+            {
                 console.log('sec')
-                clients[data.clientId].room = rooms.length-1;
+                console.log(data.clientId)
 
-                let room = rooms[clients[data.clientId].room];
+                currentGame.push(data.clientId);
+                clients[currentGame[0]].room=rooms.length
+                clients[currentGame[1]].room=rooms.length
 
-                room.client[1] = {clientId:data.clientId};
+                rooms.push({
+                    clients:[
+                        {clientId:currentGame[0]},
+                        {clientId:currentGame[1]}
+                    ],
+                    move:parseInt(Math.random()*2)
+                });
+                currentGame=[];
+                let room = rooms[rooms.length-1];
 
-                let fir = clients[room.client[0].clientId];
-                let sec = clients[room.client[1].clientId];
+                let fir = clients[room.clients[0].clientId];
+                let sec = clients[room.clients[1].clientId];
 
-                room.client[0].space=space.create(10,10);
-                room.client[1].space=space.create(10,10);
+                room.clients[0].space=space.create(10,10);
+                room.clients[1].space=space.create(10,10);
+
                 fir.socket.emit('initSpace',{
-                    own:room.client[0].space.get4My(),
-                    opo:room.client[1].space.get4Other()
+                    own:room.clients[0].space.get4My(),
+                    opo:room.clients[1].space.get4Other()
                 });
+
                 sec.socket.emit('initSpace',{
-                    own:room.client[1].space.get4My(),
-                    opo:room.client[0].space.get4Other()
+                    own:room.clients[1].space.get4My(),
+                    opo:room.clients[0].space.get4Other()
                 });
-                room.move=parseInt(Math.random()*2)
-                clients[room.client[room.move].clientId].socket.emit('MoveRight',{a:0});
+
+                clients[room.clients[room.move].clientId].socket.emit('MoveRight',{a:0});
 
             }
-        }
-        else {
-            console.log(clients[data.clientId].room);
+        } else if(clients[data.clientId].room !=undefined){
 
+            console.log(data.clientId);
             clients[data.clientId].socket=socket;
 
             let room = rooms[clients[data.clientId].room];
-            console.log(room.client);
-            if(data.clientId == room.client[0].clientId)
+
+            if(data.clientId == room.clients[0].clientId)
             {
 
                 clients[data.clientId].socket.emit('initSpace',{
-                    own:room.client[0].space.get4My(),
-                    opo:room.client[1].space.get4Other()
+                    own:room.clients[0].space.get4My(),
+                    opo:room.clients[1].space.get4Other()
                 });
                 if(room.move==0){
-                    clients[room.client[room.move].clientId].socket.emit('MoveRight',{a:1});
+                    clients[room.clients[room.move].clientId].socket.emit('MoveRight',{a:1});
                 }
             }
             else{
                 clients[data.clientId].socket.emit('initSpace',{
-                    own:room.client[1].space.get4My(),
-                    opo:room.client[0].space.get4Other()
+                    own:room.clients[1].space.get4My(),
+                    opo:room.clients[0].space.get4Other()
                 });
                 if(room.move==1){
-                    clients[room.client[room.move].clientId].socket.emit('MoveRight',{a:2});
+                    clients[room.clients[room.move].clientId].socket.emit('MoveRight',{a:2});
                 }
             }
+
         }
     });
 
     socket.on('fire', (data) => {
         let room = rooms[clients[data.clientId].room];
-        console.log(room.client,data);
+
+        console.log(data.clientId);
 
         let op = 1 - room.move;
-        let own = clients[room.client[room.move].clientId];
-        let opo = clients[room.client[op].clientId];
+        let own = clients[room.clients[room.move].clientId];
+        let opo = clients[room.clients[op].clientId];
 
-        if(data.clientId == room.client[room.move].clientId) {
-            console.log(data.clientId);
-            if(room.client[op].space.get(data.x,data.y)=='#')
+        if(data.clientId == room.clients[room.move].clientId) {
+
+            if(room.clients[op].space.get(data.x,data.y)=='#')
             {
                 console.log('hit');
-                room.client[op].space.set(data.x,data.y,'X');
-                own.socket.emit('hitOp',{x:data.x,y:data.y});
-                opo.socket.emit('hitMy',{x:data.x,y:data.y});
-                own.socket.emit('MoveRight',{a:3});
+                room.clients[op].space.set(data.x,data.y,'X');
+
+                if(room.clients[op].space.countShip==0)
+                {
+                    own.socket.emit('end',{res:'You Win'});
+                    opo.socket.emit('end',{res:'You Lose'});
+                }else{
+
+                    own.socket.emit('hitOp',{x:data.x,y:data.y});
+                    opo.socket.emit('hitMy',{x:data.x,y:data.y});
+                    own.socket.emit('MoveRight',{a:3});
+                }
+
+
             }
             else{
                 console.log('past');
-                room.client[op].space.set(data.x,data.y,'*');
+                room.clients[op].space.set(data.x,data.y,'*');
                 own.socket.emit('pastOp',{x:data.x,y:data.y});
                 opo.socket.emit('pastMy',{x:data.x,y:data.y});
                 opo.socket.emit('MoveRight',{a:4});
                 room.move = op;
             }
         }
+
     });
 
     socket.on('disconnect', () => console.log('Client disconnected'));
 });
-
+/*
 setInterval(() => io.emit('time', new Date().toTimeString()), 1000);
+*/

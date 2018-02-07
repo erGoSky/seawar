@@ -11,7 +11,6 @@
         }
         #mygrid, #opgrid {
             margin: 0 auto;
-            background: #000;
             width: 300px;
             height: 300px;
             display: block;
@@ -22,7 +21,6 @@
         }
         #app {
             margin: 0 auto;
-            background: #000;
             height: 320px;
             width: 700px;
             display: block;
@@ -37,7 +35,18 @@
             background: #fff;
             border: 1px solid #000000;
         }
-
+        .ship{
+            background: #ccc;
+        }
+        .past{
+            background: #ffc;
+        }
+        .hit{
+            background: #fcc;
+        }
+        .sea{
+             background: #fff;
+         }
     </style>
     <script src="/socket.io/socket.io.js"></script><script
             src="http://code.jquery.com/jquery-3.3.1.min.js"
@@ -45,7 +54,7 @@
             crossorigin="anonymous"></script>
     <script src="https://www.jqueryscript.net/demo/Simple-jQuery-Plugin-For-Matrix-Style-Grid-Layout-Gridly-js/src/gridly.js"></script>
     <script>
-        clientId = <%- clientId %>;
+        var clientId = "<%- clientId %>";
         var socket = io();
         var el
         socket.on('time', function(timeString) {
@@ -66,29 +75,35 @@
 
         socket.on('hitOp', function (data) {
             console.log('hitOp',data);
-            $('#op'+data.x+'x'+data.y).css('background','#fcc');
+            $('#op'+data.x+'x'+data.y).removeClass('sea').addClass("hit");
         });
 
         socket.on('hitMy', function (data) {
-            $('#ow'+data.x+'x'+data.y).css('background','#fcc');
+            $('#ow'+data.x+'x'+data.y).removeClass('sea').addClass("hit");
         });
 
         socket.on('pastOp', function (data) {
-            $('#op'+data.x+'x'+data.y).css('background','#ffc');
+            $('#op'+data.x+'x'+data.y).removeClass('sea').addClass("past");
         });
 
         socket.on('pastMy', function (data) {
-            $('#ow'+data.x+'x'+data.y).css('background','#ffc');
+            $('#ow'+data.x+'x'+data.y).removeClass('sea').addClass("past");
+        });
+
+        socket.on('end', function (data) {
+            $('#app').empty().append($('<h1>'+data.res+'</h1>'));
         });
 
         socket.on('MoveRight', function (data) {
             console.log('MoveRight',data);
-            $('#opgrid').on('click', '*', function(el) {
+            $('#opgrid').on('click', '.sea', function(el) {
+                console.log('FIRE')
                 socket.emit('fire',{
                     clientId:clientId,
                     x: el.currentTarget.attributes.x.value,
                     y: el.currentTarget.attributes.y.value });
-                $('#opgrid').off('click', '*');
+                $('#opgrid').off('click', '.sea');
+
                 $('#opSpace').css('background','#fff');
             })
             $('#opSpace').css('background','#ccf');
@@ -99,7 +114,7 @@
         function initMyGrid  (data) {
 
             mygrid = $("<div class='grid' id='mygrid' data-orientation='horizontal' data-width='200' data-height='200'>")
-            $("#mySpace").append(mygrid)
+            $("#mySpace").empty().append(mygrid)
             mygrid.data('cols',data.width).data('rows',data.height);
             for(w=0;w<data.width;w++) {
                 for(h=0;h<data.height;h++){
@@ -108,11 +123,13 @@
                     cell.data('col',w+1).data('row',h+1);
                     cell.attr('x',h).attr('y',w).attr('id','ow'+h+'x'+w);
                     if(data.space[h][w]=='X')
-                        cell.css('background','#fcc');
+                        cell.addClass("hit");
                     if(data.space[h][w]=='*')
-                        cell.css('background','#ffc');
+                        cell.addClass("past");
                     if(data.space[h][w]=='#')
-                        cell.css('background','#ccc');
+                        cell.addClass("ship");
+                    if(data.space[h][w]=='_')
+                        cell.addClass("sea");
 
                     mygrid.append(cell);
                 }
@@ -122,7 +139,7 @@
         function initOpGrid  (data) {
 
             opgrid = $("<div class='grid' id='opgrid' data-orientation='horizontal' data-width='200' data-height='200'>")
-            $("#opSpace").append(opgrid)
+            $("#opSpace").empty().append(opgrid)
             opgrid.data('cols',data.width).data('rows',data.height);
             for(w=0;w<data.width;w++) {
                 for(h=0;h<data.height;h++){
@@ -131,9 +148,11 @@
                     cell.data('col',w+1).data('row',h+1);
                     cell.attr('x',h).attr('y',w).attr('id','op'+h+'x'+w);
                     if(data.space[h][w]=='X')
-                        cell.css('background','#fcc');
+                        cell.addClass("hit");
                     if(data.space[h][w]=='*')
-                        cell.css('background','#ffc');
+                        cell.addClass("past");
+                    if(data.space[h][w]=='_')
+                        cell.addClass("sea");
 
                     opgrid.append(cell);
                 }
