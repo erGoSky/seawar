@@ -27,6 +27,18 @@ app.get('/', function(req, res){
     res.render('main', { clientId: req.session.clientId });
 });
 app.get('/logout', function(req, res) {
+    console.log('logout:'+req.session.clientId)
+    if(clients[req.session.clientId]!=undefined)
+    {
+        console.log(clients[req.session.clientId]);
+        let room=rooms[clients[req.session.clientId].room]
+
+        if(room.clients[0].clientId==req.session.clientId)
+            clients[room.clients[1].clientId].socket.emit('msg',{msg:'opponent left the game'})
+        else
+            clients[room.clients[0].clientId].socket.emit('msg',{msg:'opponent left the game'})
+
+    }
     delete req.session.clientId;
     res.redirect('/');
 });
@@ -36,19 +48,22 @@ const server = app.listen(PORT, () => console.log(`Listening on ${ PORT }`));
 var clients={};
 var rooms=[];
 var currentGame=[];
+var sokets={}
 
 const io = socketIO(server);
 io.on('connection', (socket) => {
     console.log('Client connected');
+    console.log(socket.id);
 
     socket.on('login', (data) => {
         console.log('Client login');
         console.log(data);
-
+        sokets[socket.id] = data.clientId;
 
         if(clients[data.clientId] == undefined)
         {
             clients[data.clientId] = {socket: socket};
+            console.log(currentGame);
             if(currentGame.length==0)
             {
                 console.log('fir')
@@ -166,7 +181,12 @@ io.on('connection', (socket) => {
 
     });
 
-    socket.on('disconnect', () => console.log('Client disconnected'));
+    socket.on('disconnect', () => {
+        console.log('Client disconnected');
+        if(currentGame[0]==sokets[socket.id])
+            currentGame=[];
+        console.log(socket.id);
+    });
 });
 /*
 setInterval(() => io.emit('time', new Date().toTimeString()), 1000);
