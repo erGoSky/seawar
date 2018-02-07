@@ -26,6 +26,10 @@ app.get('/', function(req, res){
     console.log(req.session.clientId);
     res.render('main', { clientId: req.session.clientId });
 });
+app.get('/logout', function(req, res) {
+    delete req.session.clientId;
+    res.redirect('/');
+});
 //app.use(express.static('public'))
 const server = app.listen(PORT, () => console.log(`Listening on ${ PORT }`));
 
