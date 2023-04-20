@@ -13,7 +13,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "ejs": "^2.5.7",
+    "ejs": "^3.1.7",
     "express": "4.13.4",
     "express-session": "^1.15.6",
     "socket.io": "1.4.6"
